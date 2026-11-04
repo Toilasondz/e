@@ -1,0 +1,57 @@
+name: Build Video Star Tweak
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Cho phép bấm nút "Run workflow" thủ công bất cứ lúc nào
+
+jobs:
+  build:
+    name: Build iOS Dylib & Deb
+    runs-on: macos-14
+
+    steps:
+      - name: 📥 Tải mã nguồn (Checkout)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 🛠️ Cài đặt công cụ ký ldid
+        run: |
+          brew install ldid
+
+      - name: ⚙️ Cài đặt Theos & iOS SDK
+        run: |
+          git clone --recursive https://github.com/theos/theos.git ~/theos
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          
+          # Tải bổ sung iOS SDK vào Theos
+          curl -LO https://github.com/theos/sdks/archive/master.zip
+          unzip -q master.zip
+          cp -r sdks-master/*.sdk ~/theos/sdks/ 2>/dev/null || true
+          rm -rf master.zip sdks-master
+
+      - name: 🔨 Biên dịch file .dylib (Chạy script clang)
+        run: |
+          chmod +x compile_dylib.sh
+          ./compile_dylib.sh
+
+      - name: 📦 Đóng gói Theos (.deb)
+        run: |
+          export THEOS=$HOME/theos
+          make clean
+          make package FINALPACKAGE=1
+
+      - name: 📤 Xuất file Thư Viện Động (.dylib)
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoStarAutoLayerTweak-dylib
+          path: build/VideoStarAutoLayerTweak.dylib
+
+      - name: 📤 Xuất file gói cài đặt Debian (.deb)
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoStarAutoLayerTweak-deb
+          path: packages/*.deb
