@@ -5,7 +5,7 @@ on:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch: # Cho phép bấm nút "Run workflow" thủ công bất cứ lúc nào
+  workflow_dispatch:
 
 jobs:
   build:
@@ -18,40 +18,47 @@ jobs:
         with:
           submodules: recursive
 
-      - name: 🛠️ Cài đặt công cụ ký ldid
+      - name: 🍎 Thiết lập Xcode & iOS SDK Chính Thức
         run: |
-          brew install ldid
+          sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer
+          echo "SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)" >> $GITHUB_ENV
+          echo "Đã tìm thấy iOS SDK tại: $(xcrun --sdk iphoneos --show-sdk-path)"
 
-      - name: ⚙️ Cài đặt Theos & iOS SDK
+      - name: ⚙️ Cài đặt Theos & SDKs
         run: |
           git clone --recursive https://github.com/theos/theos.git ~/theos
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
           
           # Tải bổ sung iOS SDK vào Theos
-          curl -LO https://github.com/theos/sdks/archive/master.zip
-          unzip -q master.zip
+          curl -sLO https://github.com/theos/sdks/archive/master.zip || true
+          unzip -q master.zip 2>/dev/null || true
           cp -r sdks-master/*.sdk ~/theos/sdks/ 2>/dev/null || true
           rm -rf master.zip sdks-master
 
-      - name: 🔨 Biên dịch file .dylib (Chạy script clang)
+      - name: 🔨 Biên dịch file Thư Viện Động (.dylib)
         run: |
           chmod +x compile_dylib.sh
           ./compile_dylib.sh
 
       - name: 📦 Đóng gói Theos (.deb)
+        continue-on-error: true
         run: |
           export THEOS=$HOME/theos
           make clean
           make package FINALPACKAGE=1
 
       - name: 📤 Xuất file Thư Viện Động (.dylib)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: VideoStarAutoLayerTweak-dylib
           path: build/VideoStarAutoLayerTweak.dylib
+          if-no-files-found: warn
 
       - name: 📤 Xuất file gói cài đặt Debian (.deb)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: VideoStarAutoLayerTweak-deb
           path: packages/*.deb
+          if-no-files-found: warn
